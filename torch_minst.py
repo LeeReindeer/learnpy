@@ -1,3 +1,4 @@
+import os.path
 import torch
 
 from torch.utils.data import DataLoader
@@ -13,7 +14,7 @@ class Net(torch.nn.Module):
         # full-connect
         self.fc1 = torch.nn.Linear(28 * 28, 64)
         self.fc2 = torch.nn.Linear(64, 64)
-        self.fc3 = torch.nn.Linear(64, 64)
+        # self.fc3 = torch.nn.Linear(64, 64)
         # output is 10 probability
         self.fc4 = torch.nn.Linear(64, 10)
         self.optimizer = torch.optim.Adam(self.parameters(), lr=0.001)
@@ -21,7 +22,7 @@ class Net(torch.nn.Module):
     def forward(self, x):
         x = torch.nn.functional.relu(self.fc1(x))
         x = torch.nn.functional.relu(self.fc2(x))
-        x = torch.nn.functional.relu(self.fc3(x))
+        # x = torch.nn.functional.relu(self.fc3(x))
         x = torch.nn.functional.log_softmax(self.fc4(x), dim=1)
         return x
 
@@ -48,6 +49,8 @@ def evaluate(test_data: DataLoader, net: Net):
     return n_correct / n_total
 
 
+MODEL_PATH = "./minst_model.pt"
+
 def main():
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     print("device", device, "cuda", torch.cuda.is_available())
@@ -59,17 +62,23 @@ def main():
 
     # 1/10
     print("initial accuracy:", evaluate(test_data, net))
-    for epoch in range(2):
-        for x, y in train_data:
-            x = x.to(device)
-            y = y.to(device)
-            net.zero_grad()
-            output = net.forward(x.view(-1, 28 * 28))
-            loss = torch.nn.functional.nll_loss(output, y)
-            # print("epoch", epoch, "loss", loss)
-            loss.backward()
-            net.optimize()
-        print("epoch", epoch, "accuracy", evaluate(test_data, net))
+    if not os.path.isfile(MODEL_PATH):
+        for epoch in range(2):
+            for x, y in train_data:
+                x = x.to(device)
+                y = y.to(device)
+                net.zero_grad()
+                output = net.forward(x.view(-1, 28 * 28))
+                loss = torch.nn.functional.nll_loss(output, y)
+                # print("epoch", epoch, "loss", loss)
+                loss.backward()
+                net.optimize()
+            print("epoch", epoch, "accuracy", evaluate(test_data, net))
+        torch.save(net.state_dict(), MODEL_PATH)
+    else:
+        print("load model checkpoint", MODEL_PATH)
+        net.load_state_dict(torch.load(MODEL_PATH))
+        net.eval()
 
     for n, (x, _) in enumerate(test_data):
         if n >= 3:
